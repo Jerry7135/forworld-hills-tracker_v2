@@ -119,7 +119,7 @@ st.markdown("""
                    font-weight: 700; font-size: .85rem; padding: 2px 10px; border-radius: 8px; white-space: nowrap;}
 .bldg .b-scale {position: absolute; top: 0; bottom: 0; left: 100%; width: 44px; border-left: 1px solid #C9D3C4;}
 .bldg .b-tick {position: absolute; left: 0; transform: translateY(-50%); font-size: .72rem; color: #6B7768;
-               padding-left: 9px; line-height: 1;}
+               padding-left: 9px; line-height: 1; white-space: nowrap;}
 .bldg .b-tick::before {content: ""; position: absolute; left: 0; top: 50%; width: 6px; border-top: 1px solid #9AA596;}
 .b-legend {display: flex; gap: 14px; justify-content: center; margin-top: 10px; font-size: .78rem; color: #4A5547;}
 .b-legend i {display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -1px;}
@@ -158,11 +158,15 @@ def img_src(url, width):
 
 
 @st.cache_data
+def _image_data_url(path, mtime):
+    return "data:image/jpeg;base64," + base64.b64encode(Path(path).read_bytes()).decode()
+
+
 def building_image(name):
-    """讀取 assets/ 裡的大樓圖片並轉成內嵌網址 (不用等 GitHub，也不吃流量)"""
+    """讀取 assets/ 裡的大樓圖片並轉成內嵌網址 (換圖後會自動更新)"""
     path = Path(__file__).parent / "assets" / name
     try:
-        return "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode()
+        return _image_data_url(str(path), path.stat().st_mtime)
     except OSError:
         return ""
 
@@ -354,10 +358,12 @@ with tab_overview:
                 cut = BLDG_GROUND_PCT
             else:
                 cut = 100
+            # 刻度標在該層的正中間；地下室合併成一個「B1–B4」
             ticks = "".join(
-                f"<div class='b-tick' style='top:{floor_pct(f):.2f}%'>{f}F</div>" if f > 0
-                else f"<div class='b-tick' style='top:{floor_pct(f):.2f}%'>B{-f}</div>"
-                for f in (TOTAL_FLOORS, 20, 15, 10, 5, -1, -BASEMENT_FLOORS))
+                f"<div class='b-tick' style='top:{(floor_pct(f) + floor_pct(f + 1)) / 2:.2f}%'>{f}F</div>"
+                for f in (TOTAL_FLOORS, 20, 15, 10, 5, 1))
+            ticks += (f"<div class='b-tick' style='top:{(BLDG_GROUND_PCT + floor_pct(-BASEMENT_FLOORS)) / 2:.2f}%'>"
+                      f"B1–B{BASEMENT_FLOORS}</div>")
             cur_label = f"目前 {current_floor}F" if current_floor > 0 else "地下室施工中"
             show_html(f"""
             <div class="card bldg-card">
